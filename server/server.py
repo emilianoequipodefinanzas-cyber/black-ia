@@ -271,6 +271,144 @@ PORTFOLIOS = {
 def build_chat_response(message, risk_level, quotes, analysis, news):
     lower = message.lower()
     pm = {q["symbol"]: q for q in quotes}
+
+    # ── Respuestas profesionales contextuales ──────────────────────────────────
+
+    def professional_response(text, suffix=""):
+        return text + ("\n\n" + suffix if suffix else "")
+
+    # Escenario: buen momento para comprar (sin activo específico)
+    buy_moment = ["buen momento", "momento para comprar", "debo comprar ahora", "es momento", "cuando comprar", "cuándo comprar", "entrar ahora", "deberia invertir", "debería invertir", "debo invertir"]
+    if any(w in lower for w in buy_moment) and not analysis:
+        sym_hint = ""
+        for k, v in SYMBOL_MAP.items():
+            if k in lower:
+                sym_hint = f" Si quieres, dime tu capital y te hago el análisis técnico de {v} con zonas de entrada reales."
+                break
+        return professional_response(
+            "Buena pregunta. Depende más del contexto que del momento exacto.\n\n"
+            "Lo importante es entender por qué quieres entrar: si es por tendencia, por inversión a largo plazo o por especulación. "
+            "Los mercados se mueven en ciclos, así que incluso en tendencias alcistas puede haber caídas temporales fuertes.\n\n"
+            "El riesgo principal es entrar sin un plan y terminar vendiendo en pérdida por movimientos normales del mercado.\n\n"
+            "Una forma más sólida de abordarlo sería definir un punto de entrada, un nivel de salida (stop loss) y considerar entrar en partes en lugar de todo de una sola vez.",
+            f"Si quieres, dime tu capital y horizonte de inversión y te ayudo a ajustarlo mejor.{sym_hint}"
+        )
+
+    # Escenario: cuánto puedo ganar
+    gain_words = ["cuanto puedo ganar", "cuánto puedo ganar", "cuanto gano", "cuánto gano", "ganancias posibles", "rendimiento esperado", "cuanto me da", "cuánto me da"]
+    if any(w in lower for w in gain_words) and not analysis:
+        capital_hint = ""
+        import re as _re
+        m = _re.search(r'\$?\s*(\d[\d,\.]*)', message)
+        if m:
+            capital_hint = f" Con ${m.group(1)}, un rendimiento mensual del 3% serían ~${float(m.group(1).replace(',',''))*0.03:,.0f} y del 10% serían ~${float(m.group(1).replace(',',''))*0.10:,.0f}, pero esto no es lineal ni garantizado."
+        return professional_response(
+            "No hay una ganancia fija garantizada, ya que depende de tu estrategia, tu disciplina y las condiciones del mercado.\n\n"
+            "Un trader consistente suele buscar rendimientos entre un 2% y 10% mensual, pero esto no es lineal ni seguro.\n\n"
+            "El principal riesgo es enfocarte solo en la ganancia sin considerar cuánto puedes perder, lo que suele llevar a decisiones impulsivas.\n\n"
+            "Lo más recomendable es enfocarte primero en proteger tu capital, usar una buena gestión de riesgo (arriesgar máximo 1-2% por operación) y construir consistencia antes de escalar.",
+            f"Si quieres, puedo simularte escenarios realistas con ese capital.{capital_hint}"
+        )
+
+    # Escenario: perdí dinero
+    loss_words = ["perdi dinero", "perdí dinero", "perdi en", "perdí en", "tuve perdidas", "tuve pérdidas", "estoy en perdida", "estoy en pérdida", "me fue mal"]
+    if any(w in lower for w in loss_words) and not analysis:
+        return professional_response(
+            "Perder dinero es parte del proceso, incluso para traders con experiencia.\n\n"
+            "Lo importante es entender por qué ocurrió: si seguiste tu estrategia o si fue una decisión emocional.\n\n"
+            "El mayor riesgo ahora no es la pérdida en sí, sino intentar recuperarla rápido, lo que suele llevar a errores más grandes.\n\n"
+            "Una mejor opción sería pausar un momento, revisar tus operaciones y detectar si hubo fallas en disciplina o en tu sistema.",
+            "Si quieres, puedo ayudarte a analizar qué pudo haber pasado y cómo evitarlo en el futuro."
+        )
+
+    # Escenario: stop loss
+    sl_words = ["stop loss", "donde poner stop", "dónde poner stop", "nivel de stop", "donde va el stop", "dónde va el stop", "como poner stop", "cómo poner stop"]
+    if any(w in lower for w in sl_words) and not analysis:
+        return professional_response(
+            "El stop loss debe colocarse en un punto donde tu análisis deja de tener sentido, no de forma aleatoria.\n\n"
+            "Normalmente se ubica por debajo de soportes clave en compras, o por encima de resistencias en ventas.\n\n"
+            "El riesgo de no usarlo correctamente es terminar con pérdidas grandes que afectan seriamente tu cuenta.\n\n"
+            "Una forma práctica: define primero cuánto estás dispuesto a perder (por ejemplo, 1% de tu cuenta) y ajusta el tamaño de posición en función de eso.",
+            "Si quieres, dime qué activo estás operando y te doy un ejemplo con niveles reales de soporte y resistencia."
+        )
+
+    # Escenario: mejor activo
+    best_asset = ["mejor activo", "que activo", "qué activo", "en que invertir", "en qué invertir", "que comprar", "qué comprar", "que es mejor", "qué es mejor", "cual es mejor", "cuál es mejor"]
+    if any(w in lower for w in best_asset) and not analysis:
+        risk_context = {
+            "conservative": "Para un perfil conservador, los índices como SPY o ETFs de bonos como BND suelen ser más estables.",
+            "moderate": "Para un perfil moderado, una combinación de SPY, QQQ y algo de BTC puede dar buen equilibrio.",
+            "aggressive": "Para un perfil agresivo, activos como QQQ, NVDA, BTC o ETH tienen mayor potencial pero también mayor volatilidad.",
+        }
+        hint = risk_context.get(risk_level or "moderate", "")
+        return professional_response(
+            "No existe un mejor activo universal, todo depende de tu perfil de riesgo y tus objetivos.\n\n"
+            "Por ejemplo, los índices suelen ser más estables, mientras que las criptomonedas son más volátiles pero con mayor potencial de retorno.\n\n"
+            f"{hint}\n\n"
+            "El riesgo es elegir un activo solo por moda o por lo que otros dicen, sin entenderlo realmente.",
+            "Si quieres, puedo ayudarte a definir cuál se ajusta mejor a ti. Dime tu capital y horizonte de inversión."
+        )
+
+    # Escenario: duplicar dinero rápido
+    double_words = ["duplicar", "doblar", "x2", "x10", "multiplicar", "rapido", "rápido", "en poco tiempo", "overnight", "de la noche"]
+    if any(w in lower for w in double_words) and not analysis:
+        return professional_response(
+            "Duplicar el dinero rápidamente implica asumir un nivel de riesgo muy alto.\n\n"
+            "En la práctica, estrategias que prometen resultados rápidos suelen terminar en pérdidas igual de rápidas. "
+            "El mercado no regala dinero, y quien promete eso generalmente está vendiendo algo.\n\n"
+            "El riesgo aquí es sobreapalancarte o tomar decisiones impulsivas buscando resultados inmediatos.\n\n"
+            "Lo más sólido es buscar crecimiento progresivo, enfocándote en consistencia y protección del capital.",
+            "Si quieres, puedo ayudarte a plantear un plan realista para crecer tu cuenta de forma sostenible."
+        )
+
+    # Escenario: win rate / rentabilidad
+    winrate_words = ["win rate", "winrate", "tasa de acierto", "porcentaje de acierto", "soy rentable", "sistema rentable", "estrategia rentable"]
+    if any(w in lower for w in winrate_words) and not analysis:
+        return professional_response(
+            "El win rate por sí solo no determina si eres rentable.\n\n"
+            "Lo importante es cuánto ganas cuando aciertas frente a cuánto pierdes cuando fallas. "
+            "Un sistema con 40% de aciertos puede ser más rentable que uno con 70% si el ratio riesgo/beneficio es mejor.\n\n"
+            "El riesgo es confiarse solo en el porcentaje sin analizar la relación riesgo/beneficio real.\n\n"
+            "Una forma más completa de evaluarlo: multiplica tu win rate por tu ganancia promedio y réstale el resultado de multiplicar tu loss rate por tu pérdida promedio.",
+            "Si quieres, puedo ayudarte a calcular si tu sistema es rentable con tus datos reales."
+        )
+
+    # Escenario: crypto segura / riesgo crypto
+    crypto_safe = ["seguro invertir en crypto", "seguro en crypto", "es seguro bitcoin", "riesgo de crypto", "riesgo en cripto", "crypto es seguro", "cripto es seguro"]
+    if any(w in lower for w in crypto_safe) and not analysis:
+        return professional_response(
+            "No es completamente seguro, ya que es un mercado muy volátil.\n\n"
+            "Las criptomonedas pueden generar grandes oportunidades, pero también caídas del 50-80% en poco tiempo. "
+            "Eso no significa que sea malo, sino que requiere una gestión de riesgo más estricta.\n\n"
+            "El riesgo principal es la volatilidad extrema y, en algunos casos, la falta de regulación.\n\n"
+            "Para reducir riesgos: diversifica, no inviertas más de lo que puedes perder, usa plataformas confiables y define tu stop loss antes de entrar.",
+            "Si quieres, puedo ayudarte a estructurar una inversión más segura en crypto según tu perfil."
+        )
+
+    # Escenario: mercado cayendo / qué hago
+    market_down = ["mercado cae", "mercado esta cayendo", "mercado está cayendo", "todo cae", "todo baja", "que hago si cae", "qué hago si cae", "mercado en rojo", "bolsa cae", "crash"]
+    if any(w in lower for w in market_down) and not analysis:
+        return professional_response(
+            "Las caídas son normales en cualquier mercado, incluso en tendencias alcistas de largo plazo.\n\n"
+            "La decisión depende de tu enfoque: si eres trader, deberías tener stops definidos y respetarlos; "
+            "si eres inversionista de largo plazo, una caída puede ser una oportunidad de comprar más barato.\n\n"
+            "El riesgo más grande es reaccionar impulsivamente y vender en pánico, cristalizando pérdidas que podrían haberse recuperado.\n\n"
+            "Lo más recomendable es seguir tu plan y no tomar decisiones basadas en emociones del momento.",
+            "Si quieres, dime qué activo tienes y vemos las opciones con datos reales."
+        )
+
+    # Escenario: debo invertir ahora / universal
+    should_invest = ["debo invertir", "debería invertir", "vale la pena invertir", "conviene invertir", "es buena idea invertir", "me recomiendas invertir"]
+    if any(w in lower for w in should_invest) and not analysis:
+        return professional_response(
+            "Buena pregunta. La respuesta depende de tu objetivo, tu tolerancia al riesgo y el contexto del mercado.\n\n"
+            "En términos generales, invertir puede ser una buena decisión si tienes un plan claro y entiendes en qué estás entrando. "
+            "Sin embargo, todos los mercados tienen riesgo y no hay garantías de ganancia.\n\n"
+            "Una forma más sólida de hacerlo es definir cuánto invertir, en qué activo y bajo qué estrategia antes de ejecutar.",
+            "Si quieres, puedo ayudarte a estructurarlo según tu situación. Dime tu capital y perfil de riesgo."
+        )
+
+    # ── ESG ────────────────────────────────────────────────────────────────────
     esg_words = ["esg", "sostenible", "sustentable", "verde", "limpia", "renovable", "carbono", "solar", "viento", "agua", "green", "clean"]
     if any(w in lower for w in esg_words) and not analysis:
         esg = {
