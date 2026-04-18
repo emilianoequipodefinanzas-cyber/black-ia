@@ -1,7 +1,9 @@
 // BLACK.IA - API client
-// Always uses the Python server via Vite proxy (/api -> localhost:3001)
+// En producción usa el servidor Python en Render
+// En desarrollo usa el proxy de Vite (/api -> localhost:3001)
 
-const SERVER = '/api';
+const RENDER_SERVER = 'https://black-ia.onrender.com/api';
+const SERVER = import.meta.env.PROD ? RENDER_SERVER : '/api';
 
 export interface Quote {
   symbol: string;
@@ -52,7 +54,10 @@ export async function buildPortfolio(riskLevel: string, capital: number) {
 }
 
 export async function getMacroDirect() {
-  const res = await fetch(`${SERVER}/macro`);
+  const url = import.meta.env.PROD
+    ? 'https://black-ia.onrender.com/api/macro'
+    : '/api/macro';
+  const res = await fetch(url);
   return res.json();
 }
 
