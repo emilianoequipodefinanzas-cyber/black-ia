@@ -1,0 +1,43 @@
+[build]
+  command = "cd app && npm install && npm run build"
+  publish = "app/dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["netlify/functions/**"]
+
+[[redirects]]
+  from = "/api/market"
+  to = "/.netlify/functions/market"
+  status = 200
+
+[[redirects]]
+  from = "/api/macro"
+  to = "/.netlify/functions/macro"
+  status = 200
+
+[[redirects]]
+  from = "/api/chat"
+  to = "/.netlify/functions/chat"
+  status = 200
+
+[[redirects]]
+  from = "/api/invest"
+  to = "/.netlify/functions/invest"
+  status = 200
+
+[[redirects]]
+  from = "/api/analysis/*"
+  to = "/.netlify/functions/analysis"
+  status = 200
+
+[[redirects]]
+  from = "/api/news/*"
+  to = "/.netlify/functions/news"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

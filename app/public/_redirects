@@ -1,0 +1,7 @@
+/api/market /.netlify/functions/market 200
+/api/macro /.netlify/functions/macro 200
+/api/chat /.netlify/functions/chat 200
+/api/invest /.netlify/functions/invest 200
+/api/analysis/* /.netlify/functions/analysis 200
+/api/news/* /.netlify/functions/news 200
+/* /index.html 200
