@@ -12,6 +12,58 @@ import './App.css';
 
 interface SessionUser { name: string; email: string; }
 
+// ─── Drawer component (mobile) / Panel (desktop) ─────────────────────────────
+function Panel({
+  open, onClose, title, subtitle, icon, iconBg, children,
+}: {
+  open: boolean; onClose: () => void; title: string; subtitle: string;
+  icon: React.ReactNode; iconBg: string; children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Panel — drawer on mobile, side panel on desktop */}
+      <div className="
+        relative mt-auto w-full bg-white shadow-2xl flex flex-col
+        rounded-t-3xl
+        md:mt-0 md:ml-auto md:rounded-none md:rounded-l-3xl md:w-[480px] md:h-full
+        animate-in slide-in-from-bottom-4 md:slide-in-from-right-4 duration-300
+      " style={{ maxHeight: '92dvh' }}>
+
+        {/* Handle (mobile only) */}
+        <div className="flex justify-center pt-3 pb-1 md:hidden">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-md ${iconBg}`}>
+              {icon}
+            </div>
+            <div>
+              <p className="font-semibold text-gray-800 text-sm">{title}</p>
+              <p className="text-xs text-gray-400">{subtitle}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [user, setUser] = useState<SessionUser | null>(() => {
     try { return JSON.parse(localStorage.getItem('capitalIA_session') || 'null'); }
@@ -25,168 +77,138 @@ function App() {
     localStorage.removeItem('capitalIA_session');
     setUser(null);
     setShowPortfolio(false);
+    setShowInvest(false);
   };
 
-  if (!user) {
-    return <AuthScreen onAuth={setUser} />;
-  }
+  if (!user) return <AuthScreen onAuth={setUser} />;
 
   const getRiskName = (risk: RiskLevel | null) => {
     if (!risk) return '';
     return risk === 'conservative' ? 'Conservador' : risk === 'moderate' ? 'Moderado' : 'Agresivo';
   };
-
   const getRiskColor = (risk: RiskLevel | null) => {
     if (!risk) return '';
-    return risk === 'conservative'
-      ? 'text-emerald-600'
-      : risk === 'moderate'
-      ? 'text-blue-600'
-      : 'text-violet-600';
+    return risk === 'conservative' ? 'text-emerald-600' : risk === 'moderate' ? 'text-blue-600' : 'text-violet-600';
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <div className="w-full max-w-md sm:max-w-lg md:max-w-xl mx-auto min-h-screen flex flex-col relative">
-        {/* Background decoration */}
-        <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-blue-100/50 to-transparent pointer-events-none" />
 
-        {/* Header */}
-        <Header onLogout={handleLogout} userName={user.name} />
+      {/* Sticky header */}
+      <Header
+        onLogout={handleLogout}
+        userName={user.name}
+        onOpenPortfolio={() => setShowPortfolio(true)}
+        onOpenInvest={() => setShowInvest(true)}
+      />
 
-        {/* Market Ticker */}
-        <MarketTicker />
+      {/* Market Ticker */}
+      <MarketTicker />
 
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col relative z-10">
-          {/* Hero Section */}
-          <div className="text-center px-4 pt-4 pb-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">
-              BLACK<span className="text-blue-600">.IA</span>
-            </h1>
-            <p className="text-gray-500 text-sm">
-              Crea tu portafolio de inversión perfecto con IA.
-            </p>
-          </div>
+      {/* ── Desktop layout: 2 columns ── Mobile: single column ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
 
-          {/* Buttons row */}
-          <div className="px-4 mb-6 flex flex-col gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowInvest(true)}
-              className="w-full py-5 rounded-2xl border-2 border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50 transition-all group"
-            >
-              <BarChart2 className="w-5 h-5 text-violet-500 mr-2 group-hover:scale-110 transition-transform" />
-              <span className="text-violet-600 font-semibold">Portafolio IA</span>
-              <ChevronRight className="w-4 h-4 text-gray-400 ml-auto group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowPortfolio(true)}
-              className="w-full py-5 rounded-2xl border-2 border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all group"
-            >
-              <Wallet className="w-5 h-5 text-blue-500 mr-2 group-hover:scale-110 transition-transform" />
-              <span className="text-blue-600 font-semibold">Invest IA</span>
-              <ChevronRight className="w-4 h-4 text-gray-400 ml-auto group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </div>
+          {/* LEFT column — branding + risk selector */}
+          <div className="w-full lg:w-80 xl:w-96 flex-shrink-0">
 
-          {/* Risk Selector */}
-          <RiskSelector selectedRisk={selectedRisk} onSelectRisk={setSelectedRisk} />
+            {/* Hero */}
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+                BLACK<span className="text-blue-600">.IA</span>
+              </h1>
+              <p className="text-gray-500 text-sm mt-1">
+                Inversiones inteligentes con IA y datos en tiempo real.
+              </p>
+            </div>
 
-          {/* Selected Risk Indicator */}
-          <div className="px-4 py-3" style={{ minHeight: '64px' }}>
+            {/* Action buttons — visible on mobile, hidden on desktop (moved to header) */}
+            <div className="flex flex-col gap-3 mb-6 md:hidden">
+              <Button variant="outline" onClick={() => setShowInvest(true)}
+                className="w-full py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50 transition-all group">
+                <BarChart2 className="w-5 h-5 text-violet-500 mr-2 group-hover:scale-110 transition-transform" />
+                <span className="text-violet-600 font-semibold">Portafolio IA</span>
+                <ChevronRight className="w-4 h-4 text-gray-400 ml-auto group-hover:translate-x-1 transition-transform" />
+              </Button>
+              <Button variant="outline" onClick={() => setShowPortfolio(true)}
+                className="w-full py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all group">
+                <Wallet className="w-5 h-5 text-blue-500 mr-2 group-hover:scale-110 transition-transform" />
+                <span className="text-blue-600 font-semibold">Invest IA</span>
+                <ChevronRight className="w-4 h-4 text-gray-400 ml-auto group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </div>
+
+            {/* Risk Selector */}
+            <RiskSelector selectedRisk={selectedRisk} onSelectRisk={setSelectedRisk} />
+
+            {/* Selected risk badge */}
             {selectedRisk && (
-              <div className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-3 border border-gray-100 flex items-center justify-between">
+              <div className="mt-3 mx-4 bg-gradient-to-r from-gray-50 to-white rounded-xl p-3 border border-gray-100 flex items-center justify-between">
                 <span className="text-sm text-gray-500">Perfil seleccionado:</span>
                 <span className={`text-sm font-semibold ${getRiskColor(selectedRisk)}`}>
                   {getRiskName(selectedRisk)}
                 </span>
               </div>
             )}
-          </div>
-        </main>
 
-        {/* Footer */}
-        <footer className="w-full px-4 py-4 text-center">
-          <p className="text-xs text-gray-400">© 2025 BLACK.IA. Inversiones inteligentes para todos.</p>
-          <p className="text-xs text-gray-400 mt-1">Black Capital Advisors</p>
-        </footer>
-      </div>
-
-      {/* Portfolio Drawer Overlay */}
-      {showPortfolio && (
-        <div className="fixed inset-0 z-50 flex flex-col">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowPortfolio(false)}
-          />
-
-          {/* Drawer — slides up from bottom, same max-width as app */}
-          <div className="relative mt-auto w-full max-w-md sm:max-w-lg md:max-w-xl mx-auto bg-white rounded-t-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-300"
-            style={{ maxHeight: '92dvh' }}
-          >
-            {/* Drawer handle */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-gray-200" />
+            {/* Footer — desktop only */}
+            <div className="hidden lg:block mt-8 px-4">
+              <p className="text-xs text-gray-400">© 2025 BLACK.IA. Inversiones inteligentes para todos.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Black Capital Advisors</p>
             </div>
+          </div>
 
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/25">
-                  <Bot className="w-5 h-5 text-white" />
+          {/* RIGHT column — chat always visible on desktop */}
+          <div className="flex-1 min-w-0 hidden lg:flex flex-col">
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
+              <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-100 flex-shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-white" />
                 </div>
                 <div>
                   <p className="font-semibold text-gray-800 text-sm">Invest IA</p>
                   <p className="text-xs text-gray-400">Asesor IA · Datos en tiempo real</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowPortfolio(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Chat inside drawer */}
-            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <ChatInterface selectedRisk={selectedRisk} />
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Invest IA Drawer */}
-      {showInvest && (
-        <div className="fixed inset-0 z-50 flex flex-col">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowInvest(false)} />
-          <div className="relative mt-auto w-full max-w-md sm:max-w-lg md:max-w-xl mx-auto bg-white rounded-t-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-300"
-            style={{ maxHeight: '92dvh' }}>
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-gray-200" />
-            </div>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-500/25">
-                  <BarChart2 className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-800 text-sm">Portafolio IA</p>
-                  <p className="text-xs text-gray-400">Portafolio personalizado · Datos reales</p>
-                </div>
+              <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <ChatInterface selectedRisk={selectedRisk} />
               </div>
-              <button onClick={() => setShowInvest(false)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-            <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-3">
-              <InvestIA selectedRisk={selectedRisk} />
             </div>
           </div>
+
         </div>
-      )}
+      </div>
+
+      {/* Mobile footer */}
+      <footer className="lg:hidden w-full px-4 py-4 text-center">
+        <p className="text-xs text-gray-400">© 2025 BLACK.IA. Inversiones inteligentes para todos.</p>
+        <p className="text-xs text-gray-400 mt-1">Black Capital Advisors</p>
+      </footer>
+
+      {/* Invest IA Panel (Portafolio IA) */}
+      <Panel
+        open={showInvest}
+        onClose={() => setShowInvest(false)}
+        title="Portafolio IA"
+        subtitle="Portafolio personalizado · Datos reales"
+        icon={<BarChart2 className="w-5 h-5 text-white" />}
+        iconBg="bg-gradient-to-br from-violet-500 to-purple-600 shadow-violet-500/25"
+      >
+        <InvestIA selectedRisk={selectedRisk} />
+      </Panel>
+
+      {/* Chat Panel (Invest IA) — mobile only, desktop shows inline */}
+      <Panel
+        open={showPortfolio}
+        onClose={() => setShowPortfolio(false)}
+        title="Invest IA"
+        subtitle="Asesor IA · Datos en tiempo real"
+        icon={<Bot className="w-5 h-5 text-white" />}
+        iconBg="bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/25"
+      >
+        <ChatInterface selectedRisk={selectedRisk} />
+      </Panel>
+
     </div>
   );
 }
