@@ -268,155 +268,170 @@ PORTFOLIOS = {
     ],
 }
 
+def detect_intent(lower):
+    """Motor de intención: clasifica el tipo de consulta"""
+    if any(w in lower for w in ["rapido", "rápido", "garantizado", "seguro 100", "duplicar", "doblar", "x2", "x10", "overnight"]):
+        return "RIESGO_ALTO"
+    if any(w in lower for w in ["perdi", "perdí", "mal", "ayuda", "estoy perdido", "no se que", "no sé qué", "me fue mal", "todo cae", "crash"]):
+        return "EMOCIONAL"
+    if any(w in lower for w in ["cuanto gano", "cuánto gano", "cuanto puedo ganar", "cuánto puedo ganar", "rendimiento", "ganancias"]):
+        return "EXPECTATIVA"
+    if any(w in lower for w in ["compro", "vendo", "entro", "salgo", "debo comprar", "debería comprar", "es momento", "buen momento"]):
+        return "DECISION"
+    if any(w in lower for w in ["rsi", "macd", "media movil", "soporte", "resistencia", "fibonacci", "velas", "patron", "indicador"]):
+        return "TECNICA"
+    if any(w in lower for w in ["stop loss", "stop-loss", "donde poner stop", "nivel de stop"]):
+        return "TECNICA"
+    if any(w in lower for w in ["win rate", "winrate", "tasa de acierto", "soy rentable"]):
+        return "TECNICA"
+    return "GENERAL"
+
+
+def extract_context(message, risk_level):
+    """Motor de contexto: extrae capital, nivel y objetivo del mensaje"""
+    ctx = {"capital": None, "nivel": None, "objetivo": None}
+    m = re.search(r'\$?\s*(\d[\d,\.]*)', message)
+    if m:
+        try:
+            ctx["capital"] = float(m.group(1).replace(",", ""))
+        except:
+            pass
+    lower = message.lower()
+    if any(w in lower for w in ["principiante", "nuevo", "empezando", "no se", "no sé", "nunca he"]):
+        ctx["nivel"] = "principiante"
+    elif any(w in lower for w in ["intermedio", "algo de experiencia", "llevo tiempo"]):
+        ctx["nivel"] = "intermedio"
+    elif any(w in lower for w in ["avanzado", "experto", "trader", "profesional"]):
+        ctx["nivel"] = "avanzado"
+    if any(w in lower for w in ["largo plazo", "largo tiempo", "años", "jubilacion", "jubilación", "retiro"]):
+        ctx["objetivo"] = "largo_plazo"
+    elif any(w in lower for w in ["trading", "corto plazo", "rapido", "rápido", "diario", "semanal"]):
+        ctx["objetivo"] = "trading"
+    return ctx
+
+
+def build_structured_response(direct, context, risk, recommendation, closing):
+    """Plantilla universal: 5 partes estructuradas"""
+    return f"{direct}\n\n{context}\n\nEl principal riesgo es {risk}\n\n{recommendation}\n\n{closing}"
+
+
 def build_chat_response(message, risk_level, quotes, analysis, news):
     lower = message.lower()
     pm = {q["symbol"]: q for q in quotes}
+    intent = detect_intent(lower)
+    ctx = extract_context(message, risk_level)
 
-    # ── Respuestas profesionales contextuales ──────────────────────────────────
+    risk_profile = {
+        "conservative": "conservador (prioriza protección de capital)",
+        "moderate": "moderado (equilibrio riesgo/retorno)",
+        "aggressive": "agresivo (busca máximo crecimiento)",
+    }.get(risk_level or "moderate", "no definido")
 
-    def professional_response(text, suffix=""):
-        return text + ("\n\n" + suffix if suffix else "")
+    capital_str = f"${ctx['capital']:,.0f}" if ctx["capital"] else "tu capital"
 
-    # Escenario: buen momento para comprar (sin activo específico)
-    buy_moment = ["buen momento", "momento para comprar", "debo comprar ahora", "es momento", "cuando comprar", "cuándo comprar", "entrar ahora", "deberia invertir", "debería invertir", "debo invertir"]
-    if any(w in lower for w in buy_moment) and not analysis:
-        sym_hint = ""
+    # ── MODO RIESGO ALTO ──────────────────────────────────────────────────────
+    if intent == "RIESGO_ALTO" and not analysis:
+        return build_structured_response(
+            "Entiendo la intención, pero es importante ser directo: estrategias que prometen resultados rápidos o garantizados implican un riesgo muy alto.",
+            f"En los mercados financieros, a mayor velocidad de ganancia esperada, mayor es la probabilidad de pérdida. Esto aplica para cualquier activo, incluyendo cripto, forex o acciones.",
+            "sobreapalancarte o tomar decisiones impulsivas buscando resultados inmediatos, lo que puede llevarte a perder más de lo que planeabas invertir.",
+            f"Una estrategia más sólida para un perfil {risk_profile} sería buscar crecimiento progresivo: definir un % de riesgo por operación (máximo 1-2% de tu cuenta), construir consistencia y escalar gradualmente.",
+            f"Si quieres, puedo ayudarte a diseñar un plan realista con {capital_str} que proteja tu capital mientras crece."
+        )
+
+    # ── MODO EMOCIONAL ────────────────────────────────────────────────────────
+    if intent == "EMOCIONAL" and not analysis:
+        return build_structured_response(
+            "Antes que nada: perder dinero o estar en una racha difícil es parte del proceso, incluso para traders con años de experiencia.",
+            "Lo más importante ahora no es recuperar lo perdido rápido, sino entender qué ocurrió: si fue una decisión emocional, si el mercado se movió en contra de tu análisis, o si hubo una falla en tu sistema.",
+            "intentar recuperar pérdidas rápidamente, lo que suele llevar a errores más grandes y pérdidas mayores.",
+            "La mejor opción es pausar, revisar tus operaciones con calma y detectar el patrón que generó el problema. Una pérdida bien analizada es una lección que vale más que la pérdida misma.",
+            "Si quieres, cuéntame qué pasó y te ayudo a identificar qué pudo haber fallado y cómo evitarlo en el futuro."
+        )
+
+    # ── MODO EXPECTATIVA ──────────────────────────────────────────────────────
+    if intent == "EXPECTATIVA" and not analysis:
+        ranges = ""
+        if ctx["capital"]:
+            c = ctx["capital"]
+            ranges = f"\n\nCon {capital_str}, algunos rangos realistas:\n- Conservador (2-4%/mes): ${c*0.02:,.0f} - ${c*0.04:,.0f}\n- Moderado (4-8%/mes): ${c*0.04:,.0f} - ${c*0.08:,.0f}\n- Agresivo (8-15%/mes): ${c*0.08:,.0f} - ${c*0.15:,.0f}\n(Estos rangos no son garantizados, son referencias de traders consistentes)"
+        return build_structured_response(
+            "No existe una ganancia fija garantizada. Lo que sí existe son rangos realistas según tu estrategia y disciplina.",
+            f"Un trader consistente con perfil {risk_profile} suele buscar entre 2% y 15% mensual, pero esto no es lineal. Hay meses positivos y meses negativos, y la consistencia se mide en trimestres, no en días." + ranges,
+            "enfocarte solo en la ganancia sin considerar cuánto puedes perder, lo que lleva a decisiones impulsivas y a no respetar el stop loss.",
+            "Lo más recomendable es definir primero tu riesgo máximo por operación (1-2% de tu cuenta), construir un sistema con reglas claras y medir resultados en períodos de al menos 3 meses.",
+            f"Si quieres, puedo simularte escenarios con {capital_str} según diferentes estrategias y niveles de riesgo."
+        )
+
+    # ── MODO DECISIÓN ─────────────────────────────────────────────────────────
+    if intent == "DECISION" and not analysis:
+        sym_detected = None
         for k, v in SYMBOL_MAP.items():
             if k in lower:
-                sym_hint = f" Si quieres, dime tu capital y te hago el análisis técnico de {v} con zonas de entrada reales."
+                sym_detected = v
                 break
-        return professional_response(
-            "Buena pregunta. Depende más del contexto que del momento exacto.\n\n"
-            "Lo importante es entender por qué quieres entrar: si es por tendencia, por inversión a largo plazo o por especulación. "
-            "Los mercados se mueven en ciclos, así que incluso en tendencias alcistas puede haber caídas temporales fuertes.\n\n"
-            "El riesgo principal es entrar sin un plan y terminar vendiendo en pérdida por movimientos normales del mercado.\n\n"
-            "Una forma más sólida de abordarlo sería definir un punto de entrada, un nivel de salida (stop loss) y considerar entrar en partes en lugar de todo de una sola vez.",
-            f"Si quieres, dime tu capital y horizonte de inversión y te ayudo a ajustarlo mejor.{sym_hint}"
+        if sym_detected:
+            return build_structured_response(
+                f"Buena pregunta. No puedo decirte con certeza si es el momento exacto para entrar en {sym_detected}, pero sí puedo darte el contexto técnico real.",
+                f"Los mercados se mueven en ciclos y cualquier activo puede tener correcciones incluso dentro de tendencias alcistas. Lo importante no es el momento perfecto, sino tener un plan claro.",
+                "entrar sin confirmación técnica y sin stop loss definido, lo que puede convertir una buena idea en una pérdida innecesaria.",
+                f"Una forma más sólida: espera confirmación en el gráfico, define tu zona de entrada, coloca tu stop loss y no arriesgues más del 1-2% de tu cuenta en esta operación.",
+                f"Si quieres, escribe 'analiza {sym_detected}' y te doy las zonas de entrada reales con MA20/50/200, RSI y soporte/resistencia."
+            )
+        else:
+            return build_structured_response(
+                "Buena pregunta. La decisión de comprar o vender depende de más variables que solo el precio actual.",
+                f"Para un perfil {risk_profile}, lo más importante es tener un plan antes de ejecutar: saber en qué entras, por qué entras, cuándo sales con ganancia y cuándo sales con pérdida.",
+                "tomar decisiones sin contexto, lo que suele llevar a entrar en el momento equivocado o salir antes de tiempo.",
+                "Define el activo que te interesa, tu capital disponible y tu horizonte de tiempo. Con eso puedo darte un análisis más específico.",
+                "¿Qué activo tienes en mente? Dímelo y te hago el análisis técnico completo con datos reales."
+            )
+
+    # ── MODO TÉCNICA ──────────────────────────────────────────────────────────
+    if intent == "TECNICA" and not analysis:
+        if "rsi" in lower:
+            return build_structured_response(
+                "El RSI (Relative Strength Index) es un indicador de momentum que mide la velocidad y magnitud de los movimientos de precio.",
+                "Se mueve entre 0 y 100. Por encima de 70 indica sobrecompra (posible corrección), por debajo de 30 indica sobreventa (posible rebote). Sin embargo, en tendencias fuertes puede mantenerse en zonas extremas por mucho tiempo.",
+                "usarlo de forma aislada sin confirmar con otros indicadores como medias móviles o volumen.",
+                "Lo más efectivo es combinar RSI con soporte/resistencia: busca divergencias (precio sube pero RSI baja) como señal de debilidad, y confirma con la tendencia principal.",
+                "Si quieres, dime qué activo analizas y te doy el RSI actual con contexto real."
+            )
+        if any(w in lower for w in ["stop loss", "stop-loss"]):
+            return build_structured_response(
+                "El stop loss debe colocarse donde tu análisis deja de tener sentido, no de forma aleatoria.",
+                "En compras, se ubica por debajo del soporte más cercano. En ventas, por encima de la resistencia. La distancia al stop determina el tamaño de tu posición, no al revés.",
+                "colocarlo demasiado ajustado (te saca por ruido del mercado) o demasiado lejos (la pérdida es demasiado grande).",
+                f"Fórmula práctica: si arriesgas 1% de {capital_str}, y tu stop está a 5% del precio de entrada, tu posición máxima es 20% de tu capital.",
+                "Si quieres, dime qué activo operas y te doy los niveles reales de soporte para colocar tu stop."
+            )
+        if any(w in lower for w in ["win rate", "winrate", "tasa de acierto"]):
+            return build_structured_response(
+                "El win rate por sí solo no determina si eres rentable. Lo que importa es la relación entre lo que ganas cuando aciertas y lo que pierdes cuando fallas.",
+                "Un sistema con 40% de aciertos puede ser más rentable que uno con 70% si el ratio riesgo/beneficio es 1:3 vs 1:0.5. La fórmula es: (Win Rate × Ganancia Promedio) - (Loss Rate × Pérdida Promedio).",
+                "confiarte solo en el porcentaje de aciertos sin analizar el ratio riesgo/beneficio real de tu sistema.",
+                "Registra tus últimas 20-30 operaciones, calcula tu ganancia promedio y pérdida promedio, y aplica la fórmula. Si el resultado es positivo, tu sistema es rentable.",
+                "Si quieres, dime tu win rate y tu ratio R:R y te calculo si tu sistema es matemáticamente rentable."
+            )
+        return build_structured_response(
+            "Buena pregunta técnica. Los indicadores son herramientas, no señales mágicas.",
+            "Cada indicador tiene su contexto de uso. Las medias móviles funcionan mejor en tendencias, el RSI en rangos, el MACD para confirmar momentum. Ninguno funciona bien en todos los mercados.",
+            "depender de un solo indicador sin entender el contexto del mercado.",
+            "Lo más efectivo es combinar 2-3 indicadores complementarios y siempre confirmar con el contexto general del mercado.",
+            "Si quieres, dime qué indicador específico te interesa y te explico cómo usarlo correctamente."
         )
 
-    # Escenario: cuánto puedo ganar
-    gain_words = ["cuanto puedo ganar", "cuánto puedo ganar", "cuanto gano", "cuánto gano", "ganancias posibles", "rendimiento esperado", "cuanto me da", "cuánto me da"]
-    if any(w in lower for w in gain_words) and not analysis:
-        capital_hint = ""
-        import re as _re
-        m = _re.search(r'\$?\s*(\d[\d,\.]*)', message)
-        if m:
-            capital_hint = f" Con ${m.group(1)}, un rendimiento mensual del 3% serían ~${float(m.group(1).replace(',',''))*0.03:,.0f} y del 10% serían ~${float(m.group(1).replace(',',''))*0.10:,.0f}, pero esto no es lineal ni garantizado."
-        return professional_response(
-            "No hay una ganancia fija garantizada, ya que depende de tu estrategia, tu disciplina y las condiciones del mercado.\n\n"
-            "Un trader consistente suele buscar rendimientos entre un 2% y 10% mensual, pero esto no es lineal ni seguro.\n\n"
-            "El principal riesgo es enfocarte solo en la ganancia sin considerar cuánto puedes perder, lo que suele llevar a decisiones impulsivas.\n\n"
-            "Lo más recomendable es enfocarte primero en proteger tu capital, usar una buena gestión de riesgo (arriesgar máximo 1-2% por operación) y construir consistencia antes de escalar.",
-            f"Si quieres, puedo simularte escenarios realistas con ese capital.{capital_hint}"
-        )
-
-    # Escenario: perdí dinero
-    loss_words = ["perdi dinero", "perdí dinero", "perdi en", "perdí en", "tuve perdidas", "tuve pérdidas", "estoy en perdida", "estoy en pérdida", "me fue mal"]
-    if any(w in lower for w in loss_words) and not analysis:
-        return professional_response(
-            "Perder dinero es parte del proceso, incluso para traders con experiencia.\n\n"
-            "Lo importante es entender por qué ocurrió: si seguiste tu estrategia o si fue una decisión emocional.\n\n"
-            "El mayor riesgo ahora no es la pérdida en sí, sino intentar recuperarla rápido, lo que suele llevar a errores más grandes.\n\n"
-            "Una mejor opción sería pausar un momento, revisar tus operaciones y detectar si hubo fallas en disciplina o en tu sistema.",
-            "Si quieres, puedo ayudarte a analizar qué pudo haber pasado y cómo evitarlo en el futuro."
-        )
-
-    # Escenario: stop loss
-    sl_words = ["stop loss", "donde poner stop", "dónde poner stop", "nivel de stop", "donde va el stop", "dónde va el stop", "como poner stop", "cómo poner stop"]
-    if any(w in lower for w in sl_words) and not analysis:
-        return professional_response(
-            "El stop loss debe colocarse en un punto donde tu análisis deja de tener sentido, no de forma aleatoria.\n\n"
-            "Normalmente se ubica por debajo de soportes clave en compras, o por encima de resistencias en ventas.\n\n"
-            "El riesgo de no usarlo correctamente es terminar con pérdidas grandes que afectan seriamente tu cuenta.\n\n"
-            "Una forma práctica: define primero cuánto estás dispuesto a perder (por ejemplo, 1% de tu cuenta) y ajusta el tamaño de posición en función de eso.",
-            "Si quieres, dime qué activo estás operando y te doy un ejemplo con niveles reales de soporte y resistencia."
-        )
-
-    # Escenario: mejor activo
-    best_asset = ["mejor activo", "que activo", "qué activo", "en que invertir", "en qué invertir", "que comprar", "qué comprar", "que es mejor", "qué es mejor", "cual es mejor", "cuál es mejor"]
-    if any(w in lower for w in best_asset) and not analysis:
-        risk_context = {
-            "conservative": "Para un perfil conservador, los índices como SPY o ETFs de bonos como BND suelen ser más estables.",
-            "moderate": "Para un perfil moderado, una combinación de SPY, QQQ y algo de BTC puede dar buen equilibrio.",
-            "aggressive": "Para un perfil agresivo, activos como QQQ, NVDA, BTC o ETH tienen mayor potencial pero también mayor volatilidad.",
-        }
-        hint = risk_context.get(risk_level or "moderate", "")
-        return professional_response(
-            "No existe un mejor activo universal, todo depende de tu perfil de riesgo y tus objetivos.\n\n"
-            "Por ejemplo, los índices suelen ser más estables, mientras que las criptomonedas son más volátiles pero con mayor potencial de retorno.\n\n"
-            f"{hint}\n\n"
-            "El riesgo es elegir un activo solo por moda o por lo que otros dicen, sin entenderlo realmente.",
-            "Si quieres, puedo ayudarte a definir cuál se ajusta mejor a ti. Dime tu capital y horizonte de inversión."
-        )
-
-    # Escenario: duplicar dinero rápido
-    double_words = ["duplicar", "doblar", "x2", "x10", "multiplicar", "rapido", "rápido", "en poco tiempo", "overnight", "de la noche"]
-    if any(w in lower for w in double_words) and not analysis:
-        return professional_response(
-            "Duplicar el dinero rápidamente implica asumir un nivel de riesgo muy alto.\n\n"
-            "En la práctica, estrategias que prometen resultados rápidos suelen terminar en pérdidas igual de rápidas. "
-            "El mercado no regala dinero, y quien promete eso generalmente está vendiendo algo.\n\n"
-            "El riesgo aquí es sobreapalancarte o tomar decisiones impulsivas buscando resultados inmediatos.\n\n"
-            "Lo más sólido es buscar crecimiento progresivo, enfocándote en consistencia y protección del capital.",
-            "Si quieres, puedo ayudarte a plantear un plan realista para crecer tu cuenta de forma sostenible."
-        )
-
-    # Escenario: win rate / rentabilidad
-    winrate_words = ["win rate", "winrate", "tasa de acierto", "porcentaje de acierto", "soy rentable", "sistema rentable", "estrategia rentable"]
-    if any(w in lower for w in winrate_words) and not analysis:
-        return professional_response(
-            "El win rate por sí solo no determina si eres rentable.\n\n"
-            "Lo importante es cuánto ganas cuando aciertas frente a cuánto pierdes cuando fallas. "
-            "Un sistema con 40% de aciertos puede ser más rentable que uno con 70% si el ratio riesgo/beneficio es mejor.\n\n"
-            "El riesgo es confiarse solo en el porcentaje sin analizar la relación riesgo/beneficio real.\n\n"
-            "Una forma más completa de evaluarlo: multiplica tu win rate por tu ganancia promedio y réstale el resultado de multiplicar tu loss rate por tu pérdida promedio.",
-            "Si quieres, puedo ayudarte a calcular si tu sistema es rentable con tus datos reales."
-        )
-
-    # Escenario: crypto segura / riesgo crypto
-    crypto_safe = ["seguro invertir en crypto", "seguro en crypto", "es seguro bitcoin", "riesgo de crypto", "riesgo en cripto", "crypto es seguro", "cripto es seguro"]
-    if any(w in lower for w in crypto_safe) and not analysis:
-        return professional_response(
-            "No es completamente seguro, ya que es un mercado muy volátil.\n\n"
-            "Las criptomonedas pueden generar grandes oportunidades, pero también caídas del 50-80% en poco tiempo. "
-            "Eso no significa que sea malo, sino que requiere una gestión de riesgo más estricta.\n\n"
-            "El riesgo principal es la volatilidad extrema y, en algunos casos, la falta de regulación.\n\n"
-            "Para reducir riesgos: diversifica, no inviertas más de lo que puedes perder, usa plataformas confiables y define tu stop loss antes de entrar.",
-            "Si quieres, puedo ayudarte a estructurar una inversión más segura en crypto según tu perfil."
-        )
-
-    # Escenario: mercado cayendo / qué hago
-    market_down = ["mercado cae", "mercado esta cayendo", "mercado está cayendo", "todo cae", "todo baja", "que hago si cae", "qué hago si cae", "mercado en rojo", "bolsa cae", "crash"]
-    if any(w in lower for w in market_down) and not analysis:
-        return professional_response(
-            "Las caídas son normales en cualquier mercado, incluso en tendencias alcistas de largo plazo.\n\n"
-            "La decisión depende de tu enfoque: si eres trader, deberías tener stops definidos y respetarlos; "
-            "si eres inversionista de largo plazo, una caída puede ser una oportunidad de comprar más barato.\n\n"
-            "El riesgo más grande es reaccionar impulsivamente y vender en pánico, cristalizando pérdidas que podrían haberse recuperado.\n\n"
-            "Lo más recomendable es seguir tu plan y no tomar decisiones basadas en emociones del momento.",
-            "Si quieres, dime qué activo tienes y vemos las opciones con datos reales."
-        )
-
-    # Escenario: debo invertir ahora / universal
-    should_invest = ["debo invertir", "debería invertir", "vale la pena invertir", "conviene invertir", "es buena idea invertir", "me recomiendas invertir"]
-    if any(w in lower for w in should_invest) and not analysis:
-        return professional_response(
-            "Buena pregunta. La respuesta depende de tu objetivo, tu tolerancia al riesgo y el contexto del mercado.\n\n"
-            "En términos generales, invertir puede ser una buena decisión si tienes un plan claro y entiendes en qué estás entrando. "
-            "Sin embargo, todos los mercados tienen riesgo y no hay garantías de ganancia.\n\n"
-            "Una forma más sólida de hacerlo es definir cuánto invertir, en qué activo y bajo qué estrategia antes de ejecutar.",
-            "Si quieres, puedo ayudarte a estructurarlo según tu situación. Dime tu capital y perfil de riesgo."
-        )
-
-    # ── ESG ────────────────────────────────────────────────────────────────────
+    # ── ESG ───────────────────────────────────────────────────────────────────
     esg_words = ["esg", "sostenible", "sustentable", "verde", "limpia", "renovable", "carbono", "solar", "viento", "agua", "green", "clean"]
     if any(w in lower for w in esg_words) and not analysis:
         esg = {
-            "conservative": "Perfil Conservador:\n- ESGV: diversificado y estable\n- ESGU: grandes empresas sostenibles\n- CRBN: baja huella de carbono\n\nPide 'analiza ESGV' para senales.",
-            "moderate": "Perfil Moderado:\n- ESGU: nucleo sostenible USA\n- ICLN: energia limpia con crecimiento\n- PHO: sector agua\n\nPide 'analiza ICLN' para senales.",
-            "aggressive": "Perfil Agresivo:\n- ICLN: alto potencial\n- TAN: energia solar\n- FAN: energia eolica\n\nPide 'analiza TAN' para senales.",
+            "conservative": "Para perfil conservador, los mejores ETFs ESG son:\n- ESGV: amplio mercado USA sostenible, baja volatilidad\n- ESGU: grandes empresas con criterios ESG\n- CRBN: enfocado en baja huella de carbono\n\nPide 'analiza ESGV' para ver señales de entrada.",
+            "moderate": "Para perfil moderado, los mejores ETFs ESG son:\n- ESGU: núcleo sostenible USA\n- ICLN: energía limpia global con potencial de crecimiento\n- PHO: sector agua, defensivo y sostenible\n\nPide 'analiza ICLN' para ver señales técnicas.",
+            "aggressive": "Para perfil agresivo, los mejores ETFs ESG son:\n- ICLN: energía limpia, alto potencial\n- TAN: energía solar, sector de alto crecimiento\n- FAN: energía eólica global\n\nPide 'analiza TAN' para ver señales de entrada.",
         }
         return esg.get(risk_level or "moderate", esg["moderate"])
+
+    # ── MACRO ─────────────────────────────────────────────────────────────────
     macro_words = ["mercado", "hoy", "situacion", "mundial", "macro", "dolar", "petroleo", "fed", "banxico", "inflaci"]
     if any(w in lower for w in macro_words) and not analysis:
         macro = get_macro()
@@ -425,29 +440,31 @@ def build_chat_response(message, risk_level, quotes, analysis, news):
         fq = lambda q, pre="": f"{pre}{q['price']:.2f} ({'+' if q['changePct']>=0 else ''}{q['changePct']:.2f}% hoy)" if q else "N/D"
         trend = lambda q: "subiendo" if q and q["changePct"] >= 0 else "bajando"
         lines = [
-            "Situacion del mercado global - datos en tiempo real (yfinance):",
+            "Situacion del mercado global - datos en tiempo real:",
             "",
-            "Dolar (DXY): " + fq(mq.get('dxy')),
-            "Petroleo WTI: " + fq(mq.get('wti'), '$'),
-            "Bono USA 10Y: " + (f"{mq['usBond']['price']:.3f}% yield ({trend(mq.get('usBond'))})" if mq.get('usBond') else "N/D"),
-            "USD/MXN: " + fq(mq.get('mxnusd')),
-            "Oro: " + fq(mq.get('gold'), '$'),
-            "Bolsa Mexico (IPC): " + (f"{mq['bmv']['price']:.0f} pts ({trend(mq.get('bmv'))})" if mq.get('bmv') else "N/D"),
+            "Dolar (DXY): " + fq(mq.get("dxy")),
+            "Petroleo WTI: $" + fq(mq.get("wti")),
+            "Bono USA 10Y: " + (f"{mq['usBond']['price']:.3f}% yield ({trend(mq.get('usBond'))})" if mq.get("usBond") else "N/D"),
+            "USD/MXN: " + fq(mq.get("mxnusd")),
+            "Oro: $" + fq(mq.get("gold")),
+            "Bolsa Mexico (IPC): " + (f"{mq['bmv']['price']:.0f} pts ({trend(mq.get('bmv'))})" if mq.get("bmv") else "N/D"),
             f"Tasa Fed: {cb['fed']['rate']}%",
             f"Tasa Banxico: {cb['banxico']['rate']}%",
             "",
             "Mercados principales:",
-            "S&P 500 (SPY): " + fmt_q(pm.get('SPY')),
-            "Nasdaq (QQQ): " + fmt_q(pm.get('QQQ')),
-            "Bitcoin: " + fmt_q(pm.get('BTC-USD')),
+            "S&P 500 (SPY): " + fmt_q(pm.get("SPY")),
+            "Nasdaq (QQQ): " + fmt_q(pm.get("QQQ")),
+            "Bitcoin: " + fmt_q(pm.get("BTC-USD")),
             "",
-            "Pide 'analiza BTC' o cualquier activo para senales tecnicas.",
+            "Pide 'analiza BTC' o cualquier activo para senales tecnicas con MA20/50/200 y RSI.",
         ]
         return "\n".join(lines)
+
+    # ── ANÁLISIS TÉCNICO ──────────────────────────────────────────────────────
     if analysis:
         a = analysis
-        signal_labels = {"COMPRAR": "COMPRAR", "VENDER": "VENDER", "ACUMULAR": "ACUMULAR", "ESPERAR": "ESPERAR"}
         q = pm.get(a["symbol"])
+        signal_emoji = {"COMPRAR": "COMPRAR", "VENDER": "VENDER", "ACUMULAR": "ACUMULAR", "ESPERAR": "ESPERAR"}
         r = f"Analisis tecnico de {a['symbol']}\n"
         r += f"Precio: ${a['price']:.2f}"
         if q:
@@ -460,9 +477,9 @@ def build_chat_response(message, risk_level, quotes, analysis, news):
         if a.get("ma200"):
             r += f"- MA200: ${a['ma200']:.2f} {'precio arriba' if a['price'] > a['ma200'] else 'precio abajo'}\n"
         if a.get("rsi"):
-            rsi_label = 'Sobreventa' if a['rsi'] < 30 else 'Sobrecompra' if a['rsi'] > 70 else 'Normal'
+            rsi_label = "Sobreventa - posible rebote" if a["rsi"] < 30 else "Sobrecompra - posible correccion" if a["rsi"] > 70 else "Zona neutral"
             r += f"- RSI(14): {a['rsi']:.1f} ({rsi_label})\n"
-        r += f"\nSenal: {signal_labels.get(a['overallSignal'], a['overallSignal'])}\n"
+        r += f"\nSenal: {signal_emoji.get(a['overallSignal'], a['overallSignal'])}\n"
         if a.get("entryZone"):
             r += f"\nZona de entrada: ${a['entryZone']['low']:.2f} - ${a['entryZone']['high']:.2f}\n"
         if a.get("stopLoss"):
@@ -476,18 +493,20 @@ def build_chat_response(message, risk_level, quotes, analysis, news):
         if a.get("resistance"):
             r += f"Resistencia: {' | '.join(['$'+str(s) for s in a['resistance'][:2]])}\n"
         risk_notes = {
-            "conservative": "\nPerfil conservador: usa stop loss ajustado y posicion pequena.",
-            "aggressive": "\nPerfil agresivo: puedes aprovechar la senal con mayor posicion.",
-            "moderate": "\nPerfil moderado: gestiona bien el riesgo con stop loss.",
+            "conservative": "\nPerfil conservador: usa stop loss ajustado y posicion pequena (max 1-2% de tu cuenta).",
+            "aggressive": "\nPerfil agresivo: puedes aprovechar la senal, pero respeta siempre el stop loss.",
+            "moderate": "\nPerfil moderado: gestiona bien el riesgo, no arriesgues mas del 1-2% por operacion.",
         }
         r += risk_notes.get(risk_level or "moderate", "")
         return r
+
+    # ── DEFAULT ───────────────────────────────────────────────────────────────
     defaults = {
-        "conservative": f"Perfil Conservador: SPY {fmt_q(pm.get('SPY'))}, BND {fmt_q(pm.get('BND'))}. Pide 'analiza SPY' para senales.",
-        "moderate": f"Perfil Moderado: SPY {fmt_q(pm.get('SPY'))}, QQQ {fmt_q(pm.get('QQQ'))}. Pide 'analiza QQQ' para senales.",
-        "aggressive": f"Perfil Agresivo: QQQ {fmt_q(pm.get('QQQ'))}, BTC {fmt_q(pm.get('BTC-USD'))}, NVDA {fmt_q(pm.get('NVDA'))}. Pide 'analiza NVDA'.",
+        "conservative": f"Perfil Conservador: SPY {fmt_q(pm.get('SPY'))}, BND {fmt_q(pm.get('BND'))}. Pide 'analiza SPY' para senales tecnicas.",
+        "moderate": f"Perfil Moderado: SPY {fmt_q(pm.get('SPY'))}, QQQ {fmt_q(pm.get('QQQ'))}. Pide 'analiza QQQ' para senales tecnicas.",
+        "aggressive": f"Perfil Agresivo: QQQ {fmt_q(pm.get('QQQ'))}, BTC {fmt_q(pm.get('BTC-USD'))}, NVDA {fmt_q(pm.get('NVDA'))}. Pide 'analiza NVDA' para senales.",
     }
-    return defaults.get(risk_level or "moderate", "Puedo analizar cualquier activo. Prueba: 'analiza BTC' o 'como esta el mercado'")
+    return defaults.get(risk_level or "moderate", "Puedo analizar cualquier activo con MA20/50/200, RSI y zonas de entrada. Tambien puedo responder preguntas sobre estrategia, riesgo y gestion de capital. Prueba: 'analiza BTC' o 'como esta el mercado'")
 
 
 @app.route("/api/market")
@@ -531,12 +550,17 @@ def chat():
     risk_level = data.get("riskLevel")
     market_symbols = ["SPY", "QQQ", "BTC-USD", "ETH-USD", "GLD", "BND", "AAPL", "MSFT", "NVDA"]
     quotes = get_multiple_quotes(market_symbols)
-    sym = detect_symbol(message)
+    # Check intent first - don't run symbol analysis for non-analysis intents
+    intent = detect_intent(message.lower())
+    sym = None
     analysis_data = None
     news_data = []
-    if sym:
-        analysis_data = get_full_analysis(sym)
-        news_data = get_news(sym)
+    # Only detect symbol and run analysis for DECISION, GENERAL, or TECNICA intents
+    if intent in ("DECISION", "GENERAL", "TECNICA") or any(w in message.lower() for w in ["analiza", "analizar", "señal", "senal", "precio de", "como esta"]):
+        sym = detect_symbol(message)
+        if sym:
+            analysis_data = get_full_analysis(sym)
+            news_data = get_news(sym)
     response = build_chat_response(message, risk_level, quotes, analysis_data, news_data)
     return jsonify({
         "response": response,
