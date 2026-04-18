@@ -1,5 +1,7 @@
-// En producción (Netlify) usa /api, en desarrollo usa localhost:3001/api
-const BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3001/api';
+// BLACK.IA - API client
+// Always uses the Python server via Vite proxy (/api -> localhost:3001)
+
+const SERVER = '/api';
 
 export interface Quote {
   symbol: string;
@@ -22,7 +24,7 @@ export interface ChatResponse {
 
 export async function fetchMarket(symbols?: string[]): Promise<Quote[]> {
   const q = symbols ? `?symbols=${symbols.join(',')}` : '';
-  const res = await fetch(`${BASE}/market${q}`);
+  const res = await fetch(`${SERVER}/market${q}`);
   const data = await res.json();
   return data.quotes as Quote[];
 }
@@ -32,7 +34,7 @@ export async function sendChat(
   riskLevel: string | null,
   history: { content: string; isUser: boolean }[]
 ): Promise<ChatResponse> {
-  const res = await fetch(`${BASE}/chat`, {
+  const res = await fetch(`${SERVER}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, riskLevel, history }),
@@ -41,10 +43,20 @@ export async function sendChat(
 }
 
 export async function buildPortfolio(riskLevel: string, capital: number) {
-  const res = await fetch(`${BASE}/invest`, {
+  const res = await fetch(`${SERVER}/invest`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ riskLevel, capital }),
   });
   return res.json();
+}
+
+export async function getMacroDirect() {
+  const res = await fetch(`${SERVER}/macro`);
+  return res.json();
+}
+
+// Keep these exports for backward compatibility with hooks
+export async function getMultipleQuotesDirect(symbols: string[]): Promise<Quote[]> {
+  return fetchMarket(symbols);
 }
